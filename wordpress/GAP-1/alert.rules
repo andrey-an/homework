@@ -1,0 +1,31 @@
+groups:
+- name: wordpress
+  rules:
+
+  - alert: service_down
+    expr: up == 0
+    for: 30s
+    labels:
+      severity: page
+    annotations:
+      summary: "Instance {{ $labels.instance }} down"
+      description: "{{ $labels.instance }} of job {{ $labels.job }} has been down for more than 30 seconds."
+
+  - alert: site_down
+    expr: probe_success < 1
+    for: 30s
+    labels:
+      severity: page
+    annotations:
+      summary: "Site Down: {{$labels.instance}}"
+      description: "Site Down: {{$labels.instance}} for more than 30 seconds"
+
+- name: BlackboxAlerts
+  rules:
+  - alert: EndpointDown
+    expr: probe_success == 0
+    for: 30s 
+    labels:
+      severity: "critical"
+    annotations:
+      summary: "Endpoint {{ $labels.instance }} down"

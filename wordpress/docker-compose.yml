@@ -1,0 +1,156 @@
+version: '3'
+
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: db
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - MYSQL_DATABASE=wordpress
+    volumes:
+      - dbdata:/var/lib/mysql
+    command: '--default-authentication-plugin=mysql_native_password'
+    networks:
+      - app-network
+
+  wordpress:
+    depends_on:
+      - db
+    image: wordpress:5.1.1-fpm-alpine
+    container_name: wordpress
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - WORDPRESS_DB_HOST=db:3306
+      - WORDPRESS_DB_USER=$MYSQL_USER
+      - WORDPRESS_DB_PASSWORD=$MYSQL_PASSWORD
+      - WORDPRESS_DB_NAME=wordpress
+    volumes:
+      - wordpress:/var/www/html
+      - ./status/www.conf:/usr/local/etc/php-fpm.d/www.conf
+    networks:
+      - app-network
+
+  webserver:
+    depends_on:
+      - wordpress
+    image: nginx:1.15.12-alpine
+    container_name: webserver
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - wordpress:/var/www/html
+      - ./nginx-conf:/etc/nginx/conf.d
+    networks:
+      - app-network
+
+  prometheus:
+    image: quay.io/prometheus/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./GAP-1:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    ports:
+      - 9090:9090
+    links:
+      - mysqld-exporter
+      - node
+    networks:
+      - app-network
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: alertmanager
+    ports:
+      - 9093:9093
+    volumes:
+      - ./GAP-1/:/etc/alertmanager/
+    restart: always
+    command:
+      - '--config.file=/etc/alertmanager/config.yml'
+      - '--storage.path=/alertmanager'
+    networks:
+      - app-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=secret
+      - GF_ALERTING_EXECUTE_ALERTS=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      - 3000:3000
+    links:
+      - prometheus
+    depends_on:
+      - prometheus
+    networks:
+      - app-network
+
+  mysqld-exporter:
+    image: quay.io/prometheus/mysqld-exporter
+    command:
+     - '--collect.info_schema.tablestats'
+    container_name: mysqld-exporter
+    environment:
+      - DATA_SOURCE_NAME=exporter:exporter@(db:3306)/
+    ports:
+      - 9104:9104
+    links:
+      - db
+    depends_on:
+      - db
+    networks:
+      - app-network
+
+  node:
+    image: quay.io/prometheus/node-exporter
+    container_name: node-exporter
+    networks:
+      - app-network
+    ports:
+      - 9100:9100
+    volumes:
+      - "/:/rootfs"
+
+  php-fpm-exporter:
+    image: hipages/php-fpm_exporter:latest
+    container_name: php-fpm-exporter
+    networks:
+      - app-network
+    ports:
+      - 9253:9253
+    environment:
+      PHP_FPM_SCRAPE_URI: "tcp://wordpress:9000/status"
+      PHP_FPM_LOG_LEVEL: "debug"
+
+  blackbox_exporter:
+    image: prom/blackbox-exporter
+    container_name: blackbox-exporter
+    ports:
+      - "9115:9115"
+    dns: 8.8.8.8
+    restart: always
+    networks:
+      - app-network
+    volumes:
+      - "./blackbox-config:/config"
+    command: '--config.file=/config/blackbox.yml'
+
+volumes:
+  wordpress:
+  dbdata:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  app-network:
+    driver: bridge  
