@@ -5,3 +5,5 @@
 2. Создан дашборд в Grafana "Infra / Node Exporter Full". Данный дашборд создан на основе данных от node-exporter из Prometheus. Использован готовый шаблон дашборда из репозитория Grafana c id 1860.
 3. Создан дашборд в Grafana "app / Wordpress Perfomance". Дашборд содержит сводные данные с экспортеров: mysqld-exporter, php-fpm-exporter, blackbox-exporter. Отображает работу компонентов CMS WordPress.
 
+Скриншоты расположены в папке GAP-2.
+
