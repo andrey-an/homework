@@ -101,7 +101,7 @@ services:
      - '--collect.info_schema.tablestats'
     container_name: mysqld-exporter
     environment:
-      - DATA_SOURCE_NAME=exporter:exporter@(db:3306)/
+      - DATA_SOURCE_NAME=wordpress_db_user:BAT7n3aNTd9mDE9F@(db:3306)/wordpress
     ports:
       - 9104:9104
     links:
