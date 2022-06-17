@@ -20,7 +20,7 @@
 ## Архитектура
 Архитектура стенда представлена на изображении ниже.    
 
-![Архитектура](https://gitlab.croc.ru/polus/polussum/monitoring/-/raw/master/prototype/zabbix-cluster/images/zabbix-cluster.png "Архитектура")
+![Архитектура](https://raw.githubusercontent.com/andrey-an/homework/main/FINAL/zabbix-cluster/images/zabbix-cluster.png "Архитектура")
 
 ### Описание компонентов
 
@@ -44,7 +44,7 @@
 ### Схема docker-compose
 
 Схема docker-compose сгенерирована с помощью [pmsipilot/docker-compose-viz](https://github.com/pmsipilot/docker-compose-viz).
-![Схема docker-compose](https://gitlab.croc.ru/polus/polussum/monitoring/-/raw/master/prototype/zabbix-cluster/images/docker-compose.png "Схема docker-compose")
+![Схема docker-compose](https://raw.githubusercontent.com/andrey-an/homework/main/FINAL/zabbix-cluster/images/docker-compose.png "Схема docker-compose")
 
 ## Интерфейсы
 |Компонент|Интерфейс|Порт|
@@ -88,11 +88,11 @@ Prometheus --> Alertmanager --> Telepush API --> Telegram
 2. Вставьте _токен_ в конфигурационный файл `alertmanager/config.yml` в разделе `receivers: name: 'telepush'` в атрибут `url`.   
 
 Пример уведомления в Telegram представлен на изображении ниже.    
-![Оповещение из Prometheus Alertmanager](https://gitlab.croc.ru/polus/polussum/monitoring/-/raw/master/prototype/zabbix-cluster/images/telegram-alert.png "Оповещение из Prometheus Alertmanager")
+![Оповещение из Prometheus Alertmanager](https://raw.githubusercontent.com/andrey-an/homework/main/FINAL/zabbix-cluster/images/telegram-alert.png "Оповещение из Prometheus Alertmanager")
 ### Визуализация
 В Grafana есть дашборды для просмотра статусов компонентов:
 - Zabbix-Cluster - статусы компонентов кластеров, на основе проверок из Prometheus;
 - [PGPool2](https://grafana.com/grafana/dashboards/15805) - дашборд для [pgpool2_exporter](https://github.com/pgpool/pgpool2_exporter).   
 
 Изображение дашборда `Zabbix-Cluster` из Grafana представлено ниже.
-![Zabbix-Cluster](https://gitlab.croc.ru/polus/polussum/monitoring/-/raw/master/prototype/zabbix-cluster/images/grafana-dashboard.png "Zabbix-Cluster")
+![Zabbix-Cluster](https://raw.githubusercontent.com/andrey-an/homework/main/FINAL/zabbix-cluster/images/grafana-dashboard.png "Zabbix-Cluster")
