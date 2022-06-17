@@ -1,0 +1,58 @@
+groups:
+- name: monitoring
+  rules:
+
+  - alert: haproxy_down
+    expr: up{instance=~"^http://haproxy.+"} == 0
+    for: 30s
+    labels:
+      severity: page
+    annotations:
+      summary: "Instance {{ $labels.instance }} down"
+      description: "{{ $labels.instance }} of job {{ $labels.job }} has been down for more than 30 seconds."
+
+  - alert: zabbix-web_only_one
+    expr: sum(up{instance=~"^http://zabbix-web.+"}) == 1
+    for: 30s
+    labels:
+      severity: warn
+    annotations:
+      summary: "Only one zabbix-web server active"
+      description: "Only one zabbix-web server has been active for more than 30 seconds."
+
+  - alert: zabbix-web_down
+    expr: (sum(up{instance=~"^http://zabbix-web.+"}) or vector(0)) == 0
+    for: 30s
+    labels:
+      severity: page
+    annotations:
+      summary: "All zabbix-web servers down"
+      description: "All zabbix-web servers has been down for more than 30 seconds."
+
+  - alert: zabbix-servers
+    expr: (sum(probe_success{host_group="zabbix-server"}) or vector(0)) == 0
+    for: 30s
+    labels:
+      severity: page
+    annotations:
+      summary: "No active zabbix-servers"
+      description: "No active zabbix-servers for more than 30 seconds"
+
+  - alert: PostgreSQL-servers
+    expr: (sum(probe_success{host_group="pg"}) or vector(0)) == 0
+    for: 30s
+    labels:
+      severity: page
+    annotations:
+      summary: "No active PostgreSQL"
+      description: "No active PostgreSQL for more than 30 seconds"
+
+  - alert: PostgreSQL-no_stanby
+    expr: (sum(pgpool2_pool_health_check_stats_status{role="standby"}) or vector(0)) == 0
+    for: 30s
+    labels:
+      severity: warn
+    annotations:
+      summary: "No stanby servers PostgreSQL"
+      description: "No stanby servers PostgreSQL for more than 30 seconds"
+

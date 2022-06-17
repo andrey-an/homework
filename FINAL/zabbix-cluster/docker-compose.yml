@@ -1,0 +1,400 @@
+version: '2.1'
+services:
+  haproxy:
+    container_name: haproxy
+    hostname: haproxy
+    image: 'haproxy:latest'
+    networks:
+      - zbx-network
+    user: root
+    ports:
+      - '80:80'
+      - '7000:7000'
+    depends_on:
+      - zabbix-web-1
+      - zabbix-web-2
+    volumes:
+      - './haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg'
+      
+  pg-0:
+    container_name: pg-0
+    hostname: pg-0
+    image: docker.io/bitnami/postgresql-repmgr:14
+    networks:
+      - zbx-network
+    ports:
+      - 5432
+    volumes:
+      - pg_0_data:/bitnami/postgresql
+      - './data:/docker-entrypoint-initdb.d'
+    env_file:
+      - ./env_vars/.env_pg
+    environment:
+      - REPMGR_PRIMARY_HOST=pg-0
+      - REPMGR_PARTNER_NODES=pg-1,pg-0
+      - REPMGR_NODE_NAME=pg-0
+      - REPMGR_NODE_NETWORK_NAME=pg-0
+  pg-1:
+    container_name: pg-1
+    hostname: pg-1
+    image: docker.io/bitnami/postgresql-repmgr:14
+    networks:
+      - zbx-network
+    ports:
+      - 5432
+    volumes:
+      - pg_1_data:/bitnami/postgresql
+      - './data:/docker-entrypoint-initdb.d'
+    env_file:
+      - ./env_vars/.env_pg
+    environment:
+      - REPMGR_PRIMARY_HOST=pg-0
+      - REPMGR_PARTNER_NODES=pg-0,pg-1
+      - REPMGR_NODE_NAME=pg-1
+      - REPMGR_NODE_NETWORK_NAME=pg-1
+
+  pgpool:
+    container_name: pgpool
+    hostname: pgpool
+    image: docker.io/bitnami/pgpool:4
+    networks:
+      - zbx-network
+    ports:
+      - 5432:5432
+    volumes:
+      - './pgpool/pool_hba.conf:/config/pool_hba.conf'
+    environment:
+      - PGPOOL_USER_HBA_FILE=/config/pool_hba.conf
+      - PGPOOL_BACKEND_NODES=0:pg-0:5432,1:pg-1:5432
+    env_file:
+      - ./env_vars/.env_pgpool2
+    depends_on:
+      - pg-0
+      - pg-1
+    healthcheck:
+      test: ["CMD", "/opt/bitnami/scripts/pgpool/healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  zabbix-server-1:
+    container_name: zabbix-server-1
+    hostname: zabbix-server-1
+    image: zabbix/zabbix-server-pgsql:ol-6.0-latest
+    ports:
+      - 10051
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro 
+      - ./zbx_env/usr/lib/zabbix/alertscripts:/usr/lib/zabbix/alertscripts:ro
+      - ./zbx_env/usr/lib/zabbix/externalscripts:/usr/lib/zabbix/externalscripts:ro
+      - ./zbx_env/var/lib/zabbix/export:/var/lib/zabbix/export:rw
+      - ./zbx_env/var/lib/zabbix/modules:/var/lib/zabbix/modules:ro
+      - ./zbx_env/var/lib/zabbix/enc:/var/lib/zabbix/enc:ro
+      - ./zbx_env/var/lib/zabbix/ssh_keys:/var/lib/zabbix/ssh_keys:ro
+      - ./zbx_env/var/lib/zabbix/mibs:/var/lib/zabbix/mibs:ro
+      - snmptraps:/var/lib/zabbix/snmptraps:rw
+      #   - ./env_vars/.ZBX_DB_CA_FILE:/run/secrets/root-ca.pem:ro
+      #   - ./env_vars/.ZBX_DB_CERT_FILE:/run/secrets/client-cert.pem:ro
+      #   - ./env_vars/.ZBX_DB_KEY_FILE:/run/secrets/client-key.pem:ro
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 20000
+        hard: 40000
+    deploy:
+      resources:
+        limits:
+          cpus: '0.70'
+          memory: 1G
+        reservations:
+          memory: 512M
+    env_file:
+      - ./env_vars/.env_db_pgsql
+      - ./env_vars/.env_srv
+    environment:
+      - ZBX_HANODENAME=zabbix-server-1
+      - ZBX_NODEADDRESS=zabbix-server-1
+    depends_on:
+      - pgpool
+    networks:
+      - zbx-network
+    stop_grace_period: 30s
+    sysctls:
+      - net.ipv4.ip_local_port_range=1024 65000
+      - net.ipv4.conf.all.accept_redirects=0
+      - net.ipv4.conf.all.secure_redirects=0
+      - net.ipv4.conf.all.send_redirects=0
+    labels:
+      com.zabbix.description: "Zabbix server with PostgreSQL database support"
+      com.zabbix.company: "Zabbix LLC"
+      com.zabbix.component: "zabbix-server"
+      com.zabbix.dbtype: "pgsql"
+      com.zabbix.os: "oracle linux"
+
+  zabbix-server-2:
+    container_name: zabbix-server-2
+    hostname: zabbix-server-2
+    image: zabbix/zabbix-server-pgsql:ol-6.0-latest
+    ports:
+      - 10051
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro 
+      - ./zbx_env/usr/lib/zabbix/alertscripts:/usr/lib/zabbix/alertscripts:ro
+      - ./zbx_env/usr/lib/zabbix/externalscripts:/usr/lib/zabbix/externalscripts:ro
+      - ./zbx_env/var/lib/zabbix/export:/var/lib/zabbix/export:rw
+      - ./zbx_env/var/lib/zabbix/modules:/var/lib/zabbix/modules:ro
+      - ./zbx_env/var/lib/zabbix/enc:/var/lib/zabbix/enc:ro
+      - ./zbx_env/var/lib/zabbix/ssh_keys:/var/lib/zabbix/ssh_keys:ro
+      - ./zbx_env/var/lib/zabbix/mibs:/var/lib/zabbix/mibs:ro
+      - snmptraps:/var/lib/zabbix/snmptraps:rw
+      #   - ./env_vars/.ZBX_DB_CA_FILE:/run/secrets/root-ca.pem:ro
+      #   - ./env_vars/.ZBX_DB_CERT_FILE:/run/secrets/client-cert.pem:ro
+      #   - ./env_vars/.ZBX_DB_KEY_FILE:/run/secrets/client-key.pem:ro
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 20000
+        hard: 40000
+    deploy:
+      resources:
+        limits:
+          cpus: '0.70'
+          memory: 1G
+        reservations:
+          memory: 512M
+    env_file:
+      - ./env_vars/.env_db_pgsql
+      - ./env_vars/.env_srv
+    environment:
+      - ZBX_HANODENAME=zabbix-server-2
+      - ZBX_NODEADDRESS=zabbix-server-2
+    depends_on:
+      - pgpool
+    networks:
+      - zbx-network
+    stop_grace_period: 30s
+    sysctls:
+      - net.ipv4.ip_local_port_range=1024 65000
+      - net.ipv4.conf.all.accept_redirects=0
+      - net.ipv4.conf.all.secure_redirects=0
+      - net.ipv4.conf.all.send_redirects=0
+    labels:
+      com.zabbix.description: "Zabbix server with PostgreSQL database support"
+      com.zabbix.company: "Zabbix LLC"
+      com.zabbix.component: "zabbix-server"
+      com.zabbix.dbtype: "pgsql"
+      com.zabbix.os: "oracle linux"
+
+  zabbix-web-1:
+    container_name: zabbix-web-1
+    hostname: zabbix-web-1
+    image: zabbix/zabbix-web-nginx-pgsql:ol-6.0-latest
+    ports:
+      - 8080
+      - 8443
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      - ./zbx_env/etc/ssl/nginx:/etc/ssl/nginx:ro
+      - ./zbx_env/usr/share/zabbix/modules/:/usr/share/zabbix/modules/:ro
+      #   - ./env_vars/.ZBX_DB_CA_FILE:/run/secrets/root-ca.pem:ro
+      #   - ./env_vars/.ZBX_DB_CERT_FILE:/run/secrets/client-cert.pem:ro
+      #   - ./env_vars/.ZBX_DB_KEY_FILE:/run/secrets/client-key.pem:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '0.70'
+          memory: 512M
+        reservations:
+          memory: 256M
+    env_file:
+      - ./env_vars/.env_db_pgsql
+      - ./env_vars/.env_web
+    depends_on:
+      - zabbix-server-1
+      - zabbix-server-2
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - zbx-network
+    stop_grace_period: 10s
+    sysctls:
+      - net.core.somaxconn=65535
+    labels:
+      com.zabbix.description: "Zabbix frontend on Nginx web-server with PostgreSQL database support"
+      com.zabbix.company: "Zabbix LLC"
+      com.zabbix.component: "zabbix-frontend"
+      com.zabbix.webserver: "nginx"
+      com.zabbix.dbtype: "pgsql"
+      com.zabbix.os: "oracle linux"
+   
+
+  zabbix-web-2:
+    container_name: zabbix-web-2
+    hostname: zabbix-web-2
+    image: zabbix/zabbix-web-nginx-pgsql:ol-6.0-latest
+    ports:
+      - 8080
+      - 8443
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      - ./zbx_env/etc/ssl/nginx:/etc/ssl/nginx:ro
+      - ./zbx_env/usr/share/zabbix/modules/:/usr/share/zabbix/modules/:ro
+      #   - ./env_vars/.ZBX_DB_CA_FILE:/run/secrets/root-ca.pem:ro
+      #   - ./env_vars/.ZBX_DB_CERT_FILE:/run/secrets/client-cert.pem:ro
+      #   - ./env_vars/.ZBX_DB_KEY_FILE:/run/secrets/client-key.pem:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '0.70'
+          memory: 512M
+        reservations:
+          memory: 256M
+    env_file:
+      - ./env_vars/.env_db_pgsql
+      - ./env_vars/.env_web
+    depends_on:
+      - zabbix-server-1
+      - zabbix-server-2
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - zbx-network
+    stop_grace_period: 10s
+    sysctls:
+      - net.core.somaxconn=65535
+    labels:
+      com.zabbix.description: "Zabbix frontend on Nginx web-server with PostgreSQL database support"
+      com.zabbix.company: "Zabbix LLC"
+      com.zabbix.component: "zabbix-frontend"
+      com.zabbix.webserver: "nginx"
+      com.zabbix.dbtype: "pgsql"
+      com.zabbix.os: "oracle linux"
+   
+  zabbix-web-service:
+    container_name: zabbix-web-service
+    hostname: zabbix-web-service
+    image: zabbix/zabbix-web-service:ol-6.0-latest
+    ports:
+      - "10053:10053"
+    volumes:
+      - ./zbx_env/var/lib/zabbix/enc:/var/lib/zabbix/enc:ro
+    cap_add:
+      - SYS_ADMIN
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          memory: 256M
+    env_file:
+      - ./env_vars/.env_web_service
+    networks:
+      - zbx-network
+    stop_grace_period: 5s
+    labels:
+      com.zabbix.description: "Zabbix web service"
+      com.zabbix.company: "Zabbix LLC"
+      com.zabbix.component: "web-service"
+      com.zabbix.os: "oracle linux"
+
+  prometheus:
+    image: quay.io/prometheus/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    ports:
+      - 9090:9090
+    links:
+      - pgpool2-exporter
+      - blackbox-exporter
+    networks:
+      - prom-network
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: alertmanager
+    ports:
+      - 9093:9093
+    volumes:
+      - ./alertmanager/:/etc/alertmanager/
+    restart: always
+    depends_on:
+      - prometheus
+    command:
+      - '--config.file=/etc/alertmanager/config.yml'
+      - '--storage.path=/alertmanager'
+    networks:
+      - prom-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=secret
+      - GF_ALERTING_EXECUTE_ALERTS=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana_provisioning:/etc/grafana/provisioning
+    ports:
+      - 3000:3000
+    links:
+      - prometheus
+    depends_on:
+      - prometheus
+    networks:
+      - prom-network
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter
+    container_name: blackbox-exporter
+    ports:
+      - "9115:9115"
+    dns: 8.8.8.8
+    restart: always
+    networks:
+      - zbx-network
+      - prom-network
+    volumes:
+      - "./blackbox-config:/config"
+    command: '--config.file=/config/blackbox.yml'
+
+  pgpool2-exporter:
+    image: pgpool/pgpool2_exporter
+    container_name: pgpool2-exporter
+    env_file:
+      - ./env_vars/.env_pgpool2_exporter
+    networks:
+      - zbx-network
+      - prom-network
+
+volumes:
+  pg_0_data:
+    driver: local
+  pg_1_data:
+    driver: local
+  snmptraps:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  zbx-network:
+    driver: bridge
+  prom-network:
+    driver: bridge

@@ -1,0 +1,68 @@
+---
+global:
+  scrape_interval:     15s # By default, scrape targets every 15 seconds.
+  evaluation_interval: 15s # Evaluate rules every 15 seconds.
+
+rule_files:
+  - 'alert.rules'
+
+alerting:
+  alertmanagers:
+  - scheme: http
+    static_configs:
+    - targets:
+      - "alertmanager:9093"
+
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+  - job_name: 'prometheus'
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'pgpool2'
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['pgpool2-exporter:9719']
+
+  - job_name: 'blackbox'
+    scrape_interval: 5s
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+        - http://haproxy:80
+        - http://zabbix-web-1:8080
+        - http://zabbix-web-2:8080
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  - job_name: 'blackbox-tcp'
+    scrape_timeout: 15s
+    scrape_interval: 15s
+    metrics_path: /probe
+    params:
+      module: [tcp_connect]
+    static_configs:
+      - targets:
+        - zabbix-server-1:10051
+        - zabbix-server-2:10051
+        - pg-0:5432
+        - pg-1:5432
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: ^(.+)-\d+:\d+$
+        target_label: host_group
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
